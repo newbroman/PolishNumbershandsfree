@@ -10,13 +10,264 @@
     <link rel="apple-touch-icon" href="icon.png">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Polish Master">
-
+    
     <style>
-        /* ... (Keep your existing CSS styles here) ... */
         :root { 
             --primary: #1a73e8; --secondary: #34a853; --accent: #673ab7; 
             --bg: #f8f9fa; --card-bg: #ffffff; --text: #202124; --border: #dadce0;
         }
-        /* (Rest of your styles continue as before) */
+        .dark-mode { 
+            --bg: #121212; --card-bg: #1e1e1e; --text: #e8eaed; --border: #3c4043;
+        }
+        
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; align-items: center; padding: 10px; min-height: 100vh; }
+
+        header { width: 100%; max-width: 400px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .header-btns { display: flex; gap: 5px; }
+        .icon-btn { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; cursor: pointer; color: var(--text); font-size: 14px; }
+
+        #startupPage {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); color: white; z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 20px; text-align: center;
+        }
+        .start-box { background: var(--card-bg); color: var(--text); padding: 20px; border-radius: 20px; max-width: 350px; }
+
+        .range-container { width: 100%; max-width: 400px; background: var(--card-bg); padding: 15px; border-radius: 15px; border: 1px solid var(--border); margin-bottom: 10px; }
+        .slider-row { margin: 10px 0; }
+        .slider-row label { display: block; font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; }
+        input[type=range] { width: 100%; accent-color: var(--primary); }
+
+        .card { background: var(--card-bg); padding: 20px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 400px; border: 1px solid var(--border); }
+        .mode-toggle { display: flex; gap: 5px; margin-bottom: 15px; background: var(--bg); padding: 5px; border-radius: 10px; }
+        .mode-toggle button { flex: 1; border: none; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: bold; background: transparent; color: var(--text); }
+        .mode-toggle button.active { background: var(--primary); color: white; }
+
+        .display-area { margin: 10px 0; min-height: 120px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .main-num { font-size: 2.5rem; font-weight: bold; color: var(--primary); }
+        
+        #heardDisplay { font-size: 0.85rem; color: #666; margin-top: 10px; font-style: italic; background: #eee; padding: 4px 10px; border-radius: 5px; display: none; }
+        .dark-mode #heardDisplay { background: #333; color: #aaa; }
+
+        .mic-on { color: #d93025; font-weight: bold; display: none; margin-top: 10px; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+
+        .btn-action { width: 100%; padding: 15px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 1rem; }
+        .btn-next { background: var(--primary); color: white; }
+        .btn-hf { background: var(--accent); color: white; }
     </style>
 </head>
+<body>
+
+<div id="startupPage">
+    <div class="start-box">
+        <h2 style="color:var(--primary)" id="startTitle">Polish Master</h2>
+        <p id="startSub">Optimized for <b>UK English</b> voice recognition.</p>
+        <p id="startInstructions">1. Hear Polish, say English.<br>2. Enable <b>Hands-Free</b>.<br>3. Check the "Heard" box if it mishears you.</p>
+        <button class="btn-action btn-next" id="btnStart" onclick="closeStartup()">START TRAINING</button>
+    </div>
+</div>
+
+<header>
+    <div style="font-weight: bold;">v2.1 PRO (UK-EN)</div>
+    <div class="header-btns">
+        <button class="icon-btn" onclick="toggleLang()" title="Switch Language">🌐 <span id="langCode">EN</span></button>
+        <button class="icon-btn" onclick="toggleDark()">🌙/☀️</button>
+    </div>
+</header>
+
+<div class="range-container">
+    <div class="slider-row">
+        <label><span id="lblMin">Min</span>: <span id="minTxt">1</span></label>
+        <input type="range" id="minIn" min="1" max="500" value="1" oninput="syncRange()">
+    </div>
+    <div class="slider-row">
+        <label><span id="lblMax">Max</span>: <span id="maxTxt">100</span></label>
+        <input type="range" id="maxIn" min="2" max="999" value="100" oninput="syncRange()">
+    </div>
+</div>
+
+<div class="card">
+    <div class="mode-toggle">
+        <button id="btnPlEn" class="active" onclick="setDir('pl-en')">PL ➡️ EN</button>
+        <button id="btnEnPl" onclick="setDir('en-pl')">EN ➡️ PL</button>
+    </div>
+
+    <div class="display-area">
+        <div id="numDisp" class="main-num">?</div>
+        <div id="heardDisplay">Heard: "..."</div>
+        <div id="micStatus" class="mic-on">🔴 Listening (UK-EN)...</div>
+    </div>
+
+    <button class="btn-action btn-next" id="btnNext" onclick="generateNext()">NEXT PHRASE</button>
+    <button class="btn-action btn-hf" id="hfToggle" onclick="toggleHF()">ENABLE HANDS-FREE</button>
+</div>
+
+<script>
+    let dir = 'pl-en', isHF = false, polish = "", english = "", recognition;
+    let currentUiLang = 'en';
+
+    const translations = {
+        en: {
+            startTitle: "Polish Master",
+            startSub: "Optimized for <b>UK English</b> voice recognition.",
+            startInst: "1. Hear Polish, say English.<br>2. Enable <b>Hands-Free</b>.<br>3. Check the 'Heard' box if it mishears you.",
+            btnStart: "START TRAINING",
+            lblMin: "Min",
+            lblMax: "Max",
+            btnNext: "NEXT PHRASE",
+            btnHfOn: "ENABLE HANDS-FREE",
+            btnHfOff: "STOP HANDS-FREE",
+            listening: "🔴 Listening (UK-EN)...",
+            heard: "Heard"
+        },
+        pl: {
+            startTitle: "Mistrz Polskiego",
+            startSub: "Zoptymalizowane pod <b>Brytyjską</b> wersję angielskiego.",
+            startInst: "1. Słyszysz polski, mówisz angielski.<br>2. Włącz tryb <b>Głośnomówiący</b>.<br>3. Sprawdź pole 'Słyszane', jeśli Cię nie rozumie.",
+            btnStart: "ROZPOCZNIJ TRENING",
+            lblMin: "Min",
+            lblMax: "Maks",
+            btnNext: "NASTĘPNA FRAZA",
+            btnHfOn: "TRYB GŁOŚNOMÓWIĄCY",
+            btnHfOff: "WYŁĄCZ TRYB GŁOŚNOMÓWIĄCY",
+            listening: "🔴 Słuchanie (UK-EN)...",
+            heard: "Słyszane"
+        }
+    };
+
+    function toggleLang() {
+        currentUiLang = (currentUiLang === 'en') ? 'pl' : 'en';
+        document.getElementById('langCode').innerText = currentUiLang.toUpperCase();
+        updateUILanguage();
+    }
+
+    function updateUILanguage() {
+        const t = translations[currentUiLang];
+        document.getElementById('startTitle').innerText = t.startTitle;
+        document.getElementById('startSub').innerHTML = t.startSub;
+        document.getElementById('startInstructions').innerHTML = t.startInst;
+        document.getElementById('btnStart').innerText = t.btnStart;
+        document.getElementById('lblMin').innerText = t.lblMin;
+        document.getElementById('lblMax').innerText = t.lblMax;
+        document.getElementById('btnNext').innerText = t.btnNext;
+        document.getElementById('hfToggle').innerText = isHF ? t.btnHfOff : t.btnHfOn;
+        document.getElementById('micStatus').innerText = t.listening;
+    }
+
+    function closeStartup() { document.getElementById('startupPage').style.display = 'none'; }
+    function toggleDark() { document.body.classList.toggle('dark-mode'); }
+    
+    function syncRange() {
+        let min = parseInt(document.getElementById('minIn').value);
+        let max = parseInt(document.getElementById('maxIn').value);
+        if(min >= max) { max = min + 1; document.getElementById('maxIn').value = max; }
+        document.getElementById('minTxt').innerText = min;
+        document.getElementById('maxTxt').innerText = max;
+    }
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechConstructor = window.webkitSpeechRecognition || window.SpeechRecognition;
+        recognition = new SpeechConstructor();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 3;
+
+        recognition.onresult = (e) => {
+            let heardList = [];
+            for (let i = 0; i < e.results[0].length; i++) {
+                heardList.push(e.results[0][i].transcript.toLowerCase());
+            }
+            const primaryGuess = e.results[0][0].transcript;
+            const heardBox = document.getElementById('heardDisplay');
+            heardBox.innerText = `${translations[currentUiLang].heard}: "${primaryGuess}"`;
+            heardBox.style.display = 'block';
+            
+            handleVoice(heardList);
+        };
+        recognition.onend = () => { document.getElementById('micStatus').style.display = 'none'; };
+    }
+
+    function setDir(d) {
+        dir = d;
+        document.getElementById('btnPlEn').classList.toggle('active', d==='pl-en');
+        document.getElementById('btnEnPl').classList.toggle('active', d==='en-pl');
+    }
+
+    function toggleHF() {
+        isHF = !isHF;
+        updateUILanguage();
+        if(isHF) generateNext();
+    }
+
+    function generateNext() {
+        let min = parseInt(document.getElementById('minIn').value);
+        let max = parseInt(document.getElementById('maxIn').value);
+        let n = Math.floor(Math.random() * (max - min + 1)) + min;
+        
+        english = n.toString();
+        polish = numToPl(n);
+        
+        document.getElementById('numDisp').innerText = (dir === 'en-pl') ? english : "???";
+        document.getElementById('heardDisplay').style.display = 'none';
+
+        let msg = (dir === 'pl-en') ? polish : english;
+        let lang = (dir === 'pl-en') ? 'pl-PL' : 'en-GB';
+        speak(msg, lang);
+
+        if(isHF && recognition) {
+            recognition.lang = (dir === 'pl-en') ? 'en-GB' : 'pl-PL';
+            setTimeout(() => {
+                document.getElementById('micStatus').style.display = 'block';
+                try { recognition.start(); } catch(e){}
+            }, 1800);
+        }
+    }
+
+    function handleVoice(attempts) {
+        let target = (dir === 'pl-en') ? english : polish;
+        let targetClean = target.toLowerCase().replace(/[-\s]/g, '');
+
+        const isMatch = attempts.some(said => {
+            let saidClean = said.replace(/[-\s]/g, '');
+            return saidClean === targetClean || said.includes(target.toLowerCase());
+        });
+
+        if(isMatch) {
+            speak(dir === 'pl-en' ? "Correct" : "Dobrze", dir === 'pl-en' ? 'en-GB' : 'pl-PL');
+            document.getElementById('numDisp').innerText = "✓ " + target;
+            setTimeout(generateNext, 1800);
+        } else {
+            speak(dir === 'pl-en' ? "No, " + english : "Nie, " + polish, dir === 'pl-en' ? 'en-GB' : 'pl-PL');
+            document.getElementById('numDisp').innerText = "✗ " + target;
+            setTimeout(generateNext, 3500);
+        }
+    }
+
+    function speak(t, l) {
+        window.speechSynthesis.cancel();
+        let u = new SpeechSynthesisUtterance(t);
+        u.lang = l; 
+        u.rate = 0.85; 
+        u.pitch = 0.9;
+        window.speechSynthesis.speak(u);
+    }
+
+    function numToPl(n) {
+        const u = ["", "jeden", "dwa", "trzy", "cztery", "pięć", "sześć", "siedem", "osiem", "dziewięć"];
+        const t1 = ["dziesięć", "jedenaście", "dwanaście", "trzynaście", "czternaście", "piętnaście", "szesnaście", "siedemnaście", "osiemnaście", "dziewiętnaście"];
+        const t10 = ["", "", "dwadzieścia", "trzydzieści", "czterdzieści", "pięćdziesiąt", "sześćdziesiąt", "siedemdziesiąt", "osiemdziesiąt", "dziewięćdziesiąt"];
+        const h = ["", "sto", "dwieście", "trzysta", "czterysta", "pięćset", "sześćset", "siedemset", "osiemset", "dziewiętset"];
+        if (n === 0) return "zero";
+        let res = "";
+        let hn = Math.floor(n / 100), tn = Math.floor((n % 100) / 10), un = n % 10;
+        if (hn > 0) res += h[hn] + " ";
+        if (tn === 1) res += t1[un];
+        else { if (tn > 1) res += t10[tn] + " "; if (un > 0) res += u[un]; }
+        return res.trim();
+    }
+</script>
+</body>
+</html>
