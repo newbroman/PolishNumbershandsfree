@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Polish Master Pro</title>
+    <title>Polish Master Pro v2.1</title>
     
     <style>
         :root { 
@@ -17,11 +17,9 @@
         * { box-sizing: border-box; }
         body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; align-items: center; padding: 10px; min-height: 100vh; }
 
-        /* HEADER */
         header { width: 100%; max-width: 400px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .icon-btn { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; cursor: pointer; color: var(--text); }
 
-        /* STARTUP PAGE (Overlay) */
         #startupPage {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); color: white; z-index: 9999;
@@ -30,20 +28,23 @@
         }
         .start-box { background: var(--card-bg); color: var(--text); padding: 20px; border-radius: 20px; max-width: 350px; }
 
-        /* SLIDERS (Now visible by default) */
         .range-container { width: 100%; max-width: 400px; background: var(--card-bg); padding: 15px; border-radius: 15px; border: 1px solid var(--border); margin-bottom: 10px; }
         .slider-row { margin: 10px 0; }
         .slider-row label { display: block; font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; }
         input[type=range] { width: 100%; accent-color: var(--primary); }
 
-        /* MAIN CARD */
         .card { background: var(--card-bg); padding: 20px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 400px; border: 1px solid var(--border); }
         .mode-toggle { display: flex; gap: 5px; margin-bottom: 15px; background: var(--bg); padding: 5px; border-radius: 10px; }
         .mode-toggle button { flex: 1; border: none; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: bold; background: transparent; color: var(--text); }
         .mode-toggle button.active { background: var(--primary); color: white; }
 
-        .display-area { margin: 20px 0; min-height: 80px; }
+        .display-area { margin: 10px 0; min-height: 120px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .main-num { font-size: 2.5rem; font-weight: bold; color: var(--primary); }
+        
+        /* Heard Text Styling */
+        #heardDisplay { font-size: 0.85rem; color: #666; margin-top: 10px; font-style: italic; background: #eee; padding: 4px 10px; border-radius: 5px; display: none; }
+        .dark-mode #heardDisplay { background: #333; color: #aaa; }
+
         .mic-on { color: #d93025; font-weight: bold; display: none; margin-top: 10px; animation: blink 1s infinite; }
         @keyframes blink { 50% { opacity: 0.5; } }
 
@@ -57,13 +58,14 @@
 <div id="startupPage">
     <div class="start-box">
         <h2 style="color:var(--primary)">Polish Master</h2>
-        <p>1. Choose a number range.<br>2. Enable <b>Hands-Free</b>.<br>3. Listen to Polish, say English!</p>
+        <p>Optimized for <b>UK English</b> voice recognition.</p>
+        <p>1. Hear Polish, say English.<br>2. Enable <b>Hands-Free</b>.<br>3. Check the "Heard" box if it mishears you.</p>
         <button class="btn-action btn-next" onclick="closeStartup()">START TRAINING</button>
     </div>
 </div>
 
 <header>
-    <div style="font-weight: bold;">v2.0 PRO</div>
+    <div style="font-weight: bold;">v2.1 PRO (UK-EN)</div>
     <button class="icon-btn" onclick="toggleDark()">🌙/☀️</button>
 </header>
 
@@ -86,7 +88,8 @@
 
     <div class="display-area">
         <div id="numDisp" class="main-num">?</div>
-        <div id="micStatus" class="mic-on">🔴 Listening...</div>
+        <div id="heardDisplay">Heard: "..."</div>
+        <div id="micStatus" class="mic-on">🔴 Listening (UK-EN)...</div>
     </div>
 
     <button class="btn-action btn-next" onclick="generateNext()">NEXT PHRASE</button>
@@ -96,7 +99,6 @@
 <script>
     let dir = 'pl-en', isHF = false, polish = "", english = "", recognition;
     
-    // UI Helpers
     function closeStartup() { document.getElementById('startupPage').style.display = 'none'; }
     function toggleDark() { document.body.classList.toggle('dark-mode'); }
     function syncRange() {
@@ -107,11 +109,28 @@
         document.getElementById('maxTxt').innerText = max;
     }
 
-    // Voice Engine
-    if ('webkitSpeechRecognition' in window) {
-        recognition = new webkitSpeechRecognition();
-        recognition.onresult = (e) => handleVoice(e.results[0][0].transcript.toLowerCase());
-        recognition.onend = () => document.getElementById('micStatus').style.display = 'none';
+    // --- RECOGNITION SETUP (UK-EN Focus) ---
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechConstructor = window.webkitSpeechRecognition || window.SpeechRecognition;
+        recognition = new SpeechConstructor();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 3; // Checks top 3 guesses for UK accents
+
+        recognition.onresult = (e) => {
+            let heardList = [];
+            for (let i = 0; i < e.results[0].length; i++) {
+                heardList.push(e.results[0][i].transcript.toLowerCase());
+            }
+            // Update the Heard Display with the primary guess
+            const primaryGuess = e.results[0][0].transcript;
+            const heardBox = document.getElementById('heardDisplay');
+            heardBox.innerText = `Heard: "${primaryGuess}"`;
+            heardBox.style.display = 'block';
+            
+            handleVoice(heardList);
+        };
+        recognition.onend = () => { document.getElementById('micStatus').style.display = 'none'; };
     }
 
     function setDir(d) {
@@ -135,14 +154,14 @@
         polish = numToPl(n);
         
         document.getElementById('numDisp').innerText = (dir === 'en-pl') ? english : "???";
+        document.getElementById('heardDisplay').style.display = 'none';
 
-        // Speak
         let msg = (dir === 'pl-en') ? polish : english;
-        let lang = (dir === 'pl-en') ? 'pl-PL' : 'en-US';
+        let lang = (dir === 'pl-en') ? 'pl-PL' : 'en-GB'; // Force UK English
         speak(msg, lang);
 
         if(isHF && recognition) {
-            recognition.lang = (dir === 'pl-en') ? 'en-US' : 'pl-PL';
+            recognition.lang = (dir === 'pl-en') ? 'en-GB' : 'pl-PL';
             setTimeout(() => {
                 document.getElementById('micStatus').style.display = 'block';
                 try { recognition.start(); } catch(e){}
@@ -150,33 +169,41 @@
         }
     }
 
-    function handleVoice(said) {
+    function handleVoice(attempts) {
         let target = (dir === 'pl-en') ? english : polish;
-        if(said.includes(target.toLowerCase().replace(/\s/g, '')) || said.includes(target.toLowerCase())) {
-            speak(dir === 'pl-en' ? "Correct" : "Dobrze", dir === 'pl-en' ? 'en-US' : 'pl-PL');
+        let targetClean = target.toLowerCase().replace(/[-\s]/g, '');
+
+        // Smart check: Does any alternative match the word or digits?
+        const isMatch = attempts.some(said => {
+            let saidClean = said.replace(/[-\s]/g, '');
+            return saidClean === targetClean || said.includes(target.toLowerCase());
+        });
+
+        if(isMatch) {
+            speak(dir === 'pl-en' ? "Correct" : "Dobrze", dir === 'pl-en' ? 'en-GB' : 'pl-PL');
             document.getElementById('numDisp').innerText = "✓ " + target;
-            setTimeout(generateNext, 1500);
+            setTimeout(generateNext, 1800);
         } else {
-            speak(dir === 'pl-en' ? "No, " + english : "Nie, " + polish, dir === 'pl-en' ? 'en-US' : 'pl-PL');
+            speak(dir === 'pl-en' ? "No, " + english : "Nie, " + polish, dir === 'pl-en' ? 'en-GB' : 'pl-PL');
             document.getElementById('numDisp').innerText = "✗ " + target;
-            setTimeout(generateNext, 3000);
+            setTimeout(generateNext, 3500);
         }
     }
 
     function speak(t, l) {
         window.speechSynthesis.cancel();
         let u = new SpeechSynthesisUtterance(t);
-        u.lang = l; u.rate = 0.9;
+        u.lang = l; 
+        u.rate = 0.85; 
+        u.pitch = 0.9; // Lowered pitch for more natural male tone
         window.speechSynthesis.speak(u);
     }
 
-    // Number Translator
     function numToPl(n) {
         const u = ["", "jeden", "dwa", "trzy", "cztery", "pięć", "sześć", "siedem", "osiem", "dziewięć"];
         const t1 = ["dziesięć", "jedenaście", "dwanaście", "trzynaście", "czternaście", "piętnaście", "szesnaście", "siedemnaście", "osiemnaście", "dziewiętnaście"];
         const t10 = ["", "", "dwadzieścia", "trzydzieści", "czterdzieści", "pięćdziesiąt", "sześćdziesiąt", "siedemdziesiąt", "osiemdziesiąt", "dziewięćdziesiąt"];
         const h = ["", "sto", "dwieście", "trzysta", "czterysta", "pięćset", "sześćset", "siedemset", "osiemset", "dziewiętset"];
-        
         if (n === 0) return "zero";
         let res = "";
         let hn = Math.floor(n / 100), tn = Math.floor((n % 100) / 10), un = n % 10;
@@ -188,3 +215,4 @@
 </script>
 </body>
 </html>
+
